@@ -1,6 +1,8 @@
 
 <h1 align="center"> tell-me-when </h1> <br>
 
+![CircleCI](https://img.shields.io/circleci/project/github/CollinMickels/tmw.svg)
+
 <p align="center">
     Get alerts on your phone when your shell commands are complete!
 </p>
