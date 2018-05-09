@@ -7,7 +7,7 @@
     Get alerts on your phone when your shell commands are complete!
 </p>
 
-
+   
 ## Introduction
 
 
@@ -31,7 +31,7 @@ _Note: Phone numbers must be internationally formatted. This means supply a "+<c
 
 ## Installation
 The easiest way to get tmw running on your system is to execute the installation script.
-To to do this:
+To do this:
 - Download the source and unzip it or execute `$ git clone https://github.com/CollinMickels/tmw`
 - `$ cd tmw`
 - `$ chmod +x install.sh`
