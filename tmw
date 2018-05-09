@@ -1,0 +1,167 @@
+#!/usr/bin/env python
+import os.path
+import argparse
+from pathlib import Path
+import time
+import datetime
+import json
+
+import phonenumbers
+from phonenumbers import carrier
+from phonenumbers.phonenumberutil import number_type
+import humanize
+from twilio.rest import Client
+
+
+def is_valid_phone_number(to_phone_number):
+    return carrier._is_mobile(number_type(phonenumbers.parse(to_phone_number)))
+
+
+def init():
+    """
+    Checks for a configuration file (config.json) in ~/files/config.
+    If the file doesn't exist, it will start the get_account_info procedure
+    """
+    file_name = 'config.json'
+    home_directory_path = str(Path.home())
+    config_file_directory = home_directory_path+"/.config/files/"
+    full_path = config_file_directory + file_name
+
+    if os.path.isfile(full_path) and os.access(full_path, os.R_OK):  # Readable Config file exists and is valid
+        try:
+            with open(full_path) as file:
+                json_file = json.load(file)
+                load_json_and_arguments(json_file)
+
+        except ValueError as exception:
+            raise ValueError("Invalid JSON configuration file")
+
+    elif not os.path.isfile(full_path):  # Config file doesn't exist yet, create it
+
+        if not os.path.exists(config_file_directory):  # Make the directory if that doesn't exist as well
+            os.makedirs(config_file_directory)
+
+        get_account_info(full_path)
+
+    else:
+        raise IOError("Config file: " + full_path + " not accessible")
+
+
+def get_account_info(full_path):
+    """
+    This procedure obtains the user's twilio credentials and a default phone number and validates them.
+    :param full_path: The full path pointing to the configuration file
+    :return:
+    """
+    to_phone_number = ""
+    from_phone_number = ""
+    account_sid = ""
+    auth_token = ""
+
+    print("\nWelcome to tell-me-when! This appears to be the first time using this tool, or maybe you haven't successfully setup a default configuration yet.\n")
+    print("In order to get started, you'll need to provide a valid twilio account SID and auth token as well as a default phone number to send alerts to.\n")
+    print("After providing them, a JSON-configuration file will be saved in ~/.config/twm \n\nLet's get started:\n")
+
+    prompt_account_sid = "Enter your account SID, this can be found at https://twilio.com/console"
+    prompt_auth_token = "Enter your auth token, this can be found at https://twilio.com/console"
+    prompt_from_phone_number = "Enter the 10-digit internationally formatted phone number you created with twilio , Ex. For the United States: ""+1 123 456 7890"""
+    prompt_to_phone_number = "Enter the 10-digit internationally formatted phone number you wish to send alerts TO, Ex. For the United States: ""+1 123 456 7890"""
+
+    print(prompt_account_sid)
+    while not account_sid:
+        account_sid = input()
+
+    print(prompt_auth_token)
+    while not auth_token:
+        auth_token = input()
+
+    print(prompt_from_phone_number)
+    while not from_phone_number:
+        from_phone_number = input()
+
+    print(prompt_to_phone_number)
+    while not to_phone_number:
+        to_phone_number = input()
+
+    while not is_valid_phone_number(from_phone_number):
+        print("INPUT ERROR:Invalid Phone Number")
+        print(prompt_from_phone_number)
+        from_phone_number = input()
+
+    while not is_valid_phone_number(to_phone_number):
+        print("INPUT ERROR:Invalid Phone Number")
+        print(prompt_to_phone_number)
+        to_phone_number = input()
+
+    account_dict = {'account_sid': account_sid,
+                    'auth_token': auth_token,
+                    'to_phone_number': to_phone_number,
+                    'from_phone_number': from_phone_number}
+
+    with open(full_path, 'w') as config_file:
+        config_file.write("")
+        json.dump(account_dict, config_file)
+
+    with open(full_path) as file:
+        config = json.load(file)
+        load_json_and_arguments(config)
+
+
+def load_json_and_arguments(config):
+    """
+    Load the contents of the config file, and the arguments and validate them
+    :param config: the configuration object containing the key:value pairs from config.json
+    """
+    account_id = config['account_sid']
+    auth_token = config['auth_token']
+    from_phone_number = config['from_phone_number']
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--p", "-phone", type=str, help="A non-default phone-number to send an alert to")
+    parser.add_argument("command", type=str, nargs=1)
+    args = parser.parse_args()
+
+    arg_command = args.command[0]
+    arg_phone = args.p
+
+    if arg_phone:
+        to_phone_number = arg_phone
+    else:
+        to_phone_number = config['to_phone_number']
+
+    if not is_valid_phone_number(to_phone_number):
+        raise ValueError("Invalid to_phone_number in configuration file")
+
+    if not is_valid_phone_number(from_phone_number):
+        raise ValueError("Invalid from_phone_number in configuration file")
+
+    execute_and_wait(account_id, auth_token, to_phone_number, from_phone_number, arg_command)
+
+
+def execute_and_wait(account_id, auth_token, to_phone_number, from_phone_number, command):
+    """
+    Execute the shell arguments provided and then send the message alert via twilio
+    :param account_id: the twilio account id from the configuration file
+    :param auth_token: the twilio auth token from the configuration file
+    :param to_phone_number: the number to send the message alert to
+    :param from_phone_number: the number created by twilio for sending numbers from
+    :param command: the shell script command
+    """
+    start = time.time()
+    os.system(command)
+    end = time.time()
+    execution_time = end-start
+    if execution_time<1000:
+        time_string = "less than a second"
+    else:
+        time_string=(humanize.naturaldelta(datetime.timedelta((end - start))))
+
+    client = Client(account_id, auth_token)     # Find these values at https://twilio.com/user/account
+
+    client.api.account.messages.create(
+        to=to_phone_number,
+        from_=from_phone_number,
+        body=("Your command: "+command+" executed in "+time_string))
+
+
+init()
