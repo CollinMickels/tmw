@@ -10,5 +10,5 @@ if ! [ -x "$(command -v python3)" ]; then
   exit 1
 fi
 
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 cp -R tmw /usr/local/bin
